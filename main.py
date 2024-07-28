@@ -1,11 +1,6 @@
 import os
 import random
-
-from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageChops, ImageEnhance, ImageOps
-from PIL import Image as PilImage
-from io import BytesIO
-from wand.image import Image as WandImage
-from wand.color import Color
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
 # Cache for storing calculated font sizes
 font_size_cache = {}
@@ -51,6 +46,28 @@ def get_details(file_path):
                 break
 
         return title, sub_title, keywords
+
+
+def transform_image(image):
+    # Define the possible rotations
+    rotations = [0, 90, 180, 270]
+    # Define the possible flips
+    flips = ['none', 'left_right', 'top_bottom']
+
+    # Randomly select a rotation
+    rotation = random.choice(rotations)
+    # Apply the rotation to the image
+    image = image.rotate(rotation, expand=True)
+
+    # Randomly select a flip
+    flip = random.choice(flips)
+    # Apply the flip to the image
+    if flip == 'left_right':
+        image = image.transpose(Image.FLIP_LEFT_RIGHT)
+    elif flip == 'top_bottom':
+        image = image.transpose(Image.FLIP_TOP_BOTTOM)
+
+    return image
 
 
 def get_max_font_size(font_path, image_width, image_height):
@@ -185,9 +202,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
-
-
-
-
-
+    #main()
+    transform_image(Image.open("test.png").convert("RGBA")).show()
