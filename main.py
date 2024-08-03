@@ -157,7 +157,7 @@ def apply_mask(transparent_image, colorful_image_path, rotation="True"):
     return result_image
 
 
-def process_the_folder(path_folder, output_base_path="output"):
+def process_the_folder(path_folder, font_path="font/COOPBL.ttf", output_base_path="output"):
     all_letter = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
     img_files = [file for file in get_paths(folder_path=path_folder, only_folder=False) if
                  file.lower().endswith(('.png', '.jpg', '.jpeg', ".webp"))]
@@ -194,7 +194,7 @@ def process_the_folder(path_folder, output_base_path="output"):
             sub_folder_name = "A-Z UPPER"
             padding = 100
             
-        l_img = create_image_with_letter(letter=let, font_path="font/COOPBL.ttf", font_size=None, padding=padding,
+        l_img = create_image_with_letter(letter=let, font_path=font_path, font_size=None, padding=padding,
                                          image_width=1024, image_height=1024)
         mask_img = apply_mask(l_img, ran_mask, rotation=this_rotation)
 
@@ -205,13 +205,14 @@ def process_the_folder(path_folder, output_base_path="output"):
     print(f"DONE ---- {path_folder} -----> TO -----> {main_output_folder}")
 
 
-def main(batch_limit=10):
+def main(batch_limit=10, font_path="font/COOPBL.ttf"):
     limit = 0
     all_task = []
     folders = get_paths(folder_path="input", only_folder=True)
     for folder in folders:
         limit += 1
-        thread = threading.Thread(target=process_the_folder, kwargs={'path_folder': folder})
+        thread = threading.Thread(target=process_the_folder, kwargs={'path_folder': folder,
+                                                                     'font_path': font_path})
         thread.start()
         all_task.append(thread)
 
@@ -226,7 +227,7 @@ def main(batch_limit=10):
 
 
 if __name__ == "__main__":
-    main(batch_limit=15)
+    main(batch_limit=10, font_path="font/COOPBL.ttf")
 
 
 
