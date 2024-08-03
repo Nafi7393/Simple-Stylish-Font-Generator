@@ -1,5 +1,8 @@
 import os
 import random
+import shutil
+import threading
+
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
 # Cache for storing calculated font sizes
@@ -36,7 +39,7 @@ def get_details(file_path):
             first_line = lines[0].strip()
             # Assuming title and subtitle are separated by ' - '
             if ' - ' in first_line:
-                title, sub_title = map(str.strip, first_line.split(' - ', 1))
+                title, sub_title, rotation = map(str.strip, first_line.split(' - '))
 
         # Extract keywords from the last non-empty line
         for line in reversed(lines):
@@ -45,27 +48,22 @@ def get_details(file_path):
                 keywords = stripped_line
                 break
 
-        return title, sub_title, keywords
+        return title, sub_title, rotation, keywords
 
 
-def transform_image(image):
-    # Define the possible rotations
+def transform_image(image, is_rotation):
     rotations = [0, 90, 180, 270]
-    # Define the possible flips
     flips = ['none', 'left_right', 'top_bottom']
 
-    # Randomly select a rotation
-    rotation = random.choice(rotations)
-    # Apply the rotation to the image
-    image = image.rotate(rotation, expand=True)
+    if is_rotation.lower() == "true":
+        rotation = random.choice(rotations)
+        image = image.rotate(rotation, expand=True)
 
-    # Randomly select a flip
-    flip = random.choice(flips)
-    # Apply the flip to the image
-    if flip == 'left_right':
-        image = image.transpose(Image.FLIP_LEFT_RIGHT)
-    elif flip == 'top_bottom':
-        image = image.transpose(Image.FLIP_TOP_BOTTOM)
+        flip = random.choice(flips)
+        if flip == 'left_right':
+            image = image.transpose(Image.FLIP_LEFT_RIGHT)
+        elif flip == 'top_bottom':
+            image = image.transpose(Image.FLIP_TOP_BOTTOM)
 
     return image
 
@@ -80,9 +78,11 @@ def get_max_font_size(font_path, image_width, image_height):
 
     while True:
         font = ImageFont.truetype(font_path, font_size)
-        text_bbox = draw.textbbox((0, 0), 'A', font=font)
+
+        text_bbox = draw.textbbox((0, 0), 'S', font=font)
         text_width = text_bbox[2] - text_bbox[0]
         text_height = text_bbox[3] - text_bbox[1]
+
         if text_width > image_width or text_height > image_height:
             font_size -= 1
             break
@@ -132,9 +132,10 @@ def create_image_with_letter(letter, font_path, font_size=None, padding=100,
     return image
 
 
-def apply_mask(transparent_image, colorful_image_path):
+def apply_mask(transparent_image, colorful_image_path, rotation="True"):
     # Load the colorful image
     colorful_image = Image.open(colorful_image_path).convert("RGBA")
+    colorful_image = transform_image(colorful_image, rotation)
 
     # Ensure the colorful image and transparent image have the same size
     if colorful_image.size != transparent_image.size:
@@ -162,45 +163,70 @@ def process_the_folder(path_folder, output_base_path="output"):
                  file.lower().endswith(('.png', '.jpg', '.jpeg', ".webp"))]
     info_file_path = f"{path_folder}\\__INFO.txt"
 
-    this_title, this_sub_title, this_keywords = get_details(file_path=info_file_path)
+    this_title, this_sub_title, this_rotation, this_keywords = get_details(file_path=info_file_path)
 
     # Create the main output folder
     main_output_folder = create_unique_folder(output_base_path, this_title)
 
-    # Create subfolders inside the main output folder
-    subfolders = {
+    # Copy the INFO text file to input folder.
+    shutil.copy(f"{info_file_path}", f"{main_output_folder}\\__INFO.txt")
+
+    # Create sub_folders inside the main output folder
+    sub_folders = {
         "0-9": os.path.join(main_output_folder, "0-9"),
         "a-z lower": os.path.join(main_output_folder, "a-z lower"),
-        "A-Z UPPER": os.path.join(main_output_folder, "A-Zss UPPER")
+        "A-Z UPPER": os.path.join(main_output_folder, "A-Z UPPER")
     }
-    for subfolder in subfolders.values():
-        os.makedirs(subfolder, exist_ok=True)
+    for sub_folder in sub_folders.values():
+        os.makedirs(sub_folder, exist_ok=True)
 
     for let in all_letter:
         ran_mask = random.choice(img_files)
-        l_img = create_image_with_letter(letter=let, font_path="font/Fresh Juice.ttf", font_size=None, padding=100,
-                                         image_width=1024, image_height=1024)
-        mask_img = apply_mask(l_img, ran_mask)
 
-        # Determine the correct subfolder based on the letter
+        # Determine the correct sub_folder based on the letter
         if let.isdigit():
-            subfolder_name = "0-9"
+            sub_folder_name = "0-9"
+            padding = 100
         elif let.islower():
-            subfolder_name = "a-z lower"
+            sub_folder_name = "a-z lower"
+            padding = 200
         else:
-            subfolder_name = "A-Z UPPER"
+            sub_folder_name = "A-Z UPPER"
+            padding = 100
+            
+        l_img = create_image_with_letter(letter=let, font_path="font/COOPBL.ttf", font_size=None, padding=padding,
+                                         image_width=1024, image_height=1024)
+        mask_img = apply_mask(l_img, ran_mask, rotation=this_rotation)
 
-        # Save the masked image to the appropriate subfolder
-        output_file = os.path.join(subfolders[subfolder_name], f"{let}.png")
+        # Save the masked image to the appropriate sub_folder
+        output_file = os.path.join(sub_folders[sub_folder_name], f"{let}.png")
         mask_img.save(output_file)
 
+    print(f"DONE ---- {path_folder} -----> TO -----> {main_output_folder}")
 
-def main():
+
+def main(batch_limit=10):
+    limit = 0
+    all_task = []
     folders = get_paths(folder_path="input", only_folder=True)
     for folder in folders:
-        process_the_folder(path_folder=folder)
+        limit += 1
+        thread = threading.Thread(target=process_the_folder, kwargs={'path_folder': folder})
+        thread.start()
+        all_task.append(thread)
+
+        if limit == batch_limit:
+            for fire in all_task:
+                fire.join()
+            all_task = []
+            limit = 0
+
+    for fire in all_task:
+        fire.join()
 
 
 if __name__ == "__main__":
-    #main()
-    transform_image(Image.open("test.png").convert("RGBA")).show()
+    main(batch_limit=15)
+
+
+
